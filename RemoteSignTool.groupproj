@@ -1,0 +1,48 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{A72033F9-EF6D-47A9-8BFA-174C1C61A4FB}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="RemoteSignTool_Server.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="RemoteSignTool_Client.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="RemoteSignTool_Server">
+        <MSBuild Projects="RemoteSignTool_Server.dproj"/>
+    </Target>
+    <Target Name="RemoteSignTool_Server:Clean">
+        <MSBuild Projects="RemoteSignTool_Server.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="RemoteSignTool_Server:Make">
+        <MSBuild Projects="RemoteSignTool_Server.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="RemoteSignTool_Client">
+        <MSBuild Projects="RemoteSignTool_Client.dproj"/>
+    </Target>
+    <Target Name="RemoteSignTool_Client:Clean">
+        <MSBuild Projects="RemoteSignTool_Client.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="RemoteSignTool_Client:Make">
+        <MSBuild Projects="RemoteSignTool_Client.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="RemoteSignTool_Server;RemoteSignTool_Client"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="RemoteSignTool_Server:Clean;RemoteSignTool_Client:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="RemoteSignTool_Server:Make;RemoteSignTool_Client:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

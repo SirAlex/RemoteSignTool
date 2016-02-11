@@ -1,0 +1,11 @@
+*.bak
+*.map
+*.jdbg
+*.rsm
+*.dcu
+*.local
+*.identcache
+*.dsk
+*.drc
+__history
+*.stat
