@@ -25,7 +25,6 @@ object MainForm: TMainForm
     BevelOuter = bvNone
     ParentBackground = False
     TabOrder = 0
-    ExplicitWidth = 779
     DesignSize = (
       653
       137)
@@ -40,7 +39,6 @@ object MainForm: TMainForm
       EditLabel.Caption = 'Path to signtool.exe'
       TabOrder = 0
       Text = 'd:\proj.git\buildtools\signtool.exe'
-      ExplicitWidth = 753
     end
     object edHttpPort: TLabeledEdit
       Left = 16
@@ -63,7 +61,6 @@ object MainForm: TMainForm
       Caption = 'Test and start server'
       TabOrder = 2
       OnClick = btStartClick
-      ExplicitLeft = 624
     end
     object edSigntoolCmdLine: TLabeledEdit
       Left = 16
@@ -76,7 +73,6 @@ object MainForm: TMainForm
       EditLabel.Caption = 'Default signtool parameters (if not overridden by client call)'
       TabOrder = 3
       Text = 'sign /sha1 "60BAFCCB504FD648AD39DD18550543BF6A652816" "%s"'
-      ExplicitWidth = 753
     end
   end
   object memLog: TMemo
@@ -86,10 +82,6 @@ object MainForm: TMainForm
     Height = 307
     Align = alClient
     TabOrder = 1
-    ExplicitLeft = 304
-    ExplicitTop = 200
-    ExplicitWidth = 185
-    ExplicitHeight = 89
   end
   object httpServ: TIdHTTPServer
     Bindings = <>

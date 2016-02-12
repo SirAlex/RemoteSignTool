@@ -30,8 +30,10 @@ type
 
     procedure LoadSettings;
     procedure SaveSettings;
+    procedure FlushLog;
   public
     procedure Log(const AMessage:string);
+
     { Public declarations }
   end;
 
@@ -40,7 +42,10 @@ var
 
 implementation
 
-uses IOUtils, System.NetEncoding, System.IniFiles;
+uses  IOUtils,
+      System.NetEncoding,
+      System.IniFiles,
+      System.StrUtils;
 
 {$R *.dfm}
 
@@ -110,7 +115,7 @@ var
   rz: Cardinal;
   msg: string;
 begin
-  rz := CreateDOSProcessRedirected(Format(SignCmdLine,[FileName]), msg, hidden);
+  rz := CreateDOSProcessRedirected(SignCmdLine + ' "'+FileName+'"', msg, hidden);
   if rz = 0 then
   begin
     result := true;
@@ -118,7 +123,7 @@ begin
   end else
   begin
     result := false;
-    ResultMessage := '<h1>Sign failed with error code: <b>'+inttostr(rz)+'</b></h1><br><b>'+StringReplace(TNetEncoding.HTML.Encode(msg),#13#10,'<br>',[rfReplaceAll])+'</b>';
+    ResultMessage := 'Signtool rror code: '+inttostr(rz)+#13#10+msg;
   end;
 end;
 
@@ -142,9 +147,37 @@ begin
     StartHTTPServer;
 end;
 
+procedure TMainForm.FlushLog;
+var
+  I: Integer;
+  fs: TFileStream;
+  logname: string;
+  rw: RawByteString;
+begin
+  logname := ChangeFileExt(ParamStr(0),'.log');
+  // Open log
+  if FileExists(logname) then
+  begin
+    fs := TFileStream.Create(logname, fmOpenReadWrite or fmShareDenyNone);
+    fs.Seek(0, soEnd);
+  end
+  else
+    fs := TFileStream.Create(logname, fmCreate or fmShareDenyNone);
+  try
+    for I := MainForm.memLog.Lines.Count-1 downto 0 do
+    begin
+      rw := UTF8Encode(MainForm.memLog.Lines[I]+#13#10);
+      fs.Write(rw[1],length(rw));
+    end;
+  finally
+    fs.Free;
+  end;
+end;
+
 procedure TMainForm.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
   SaveSettings;
+  FlushLog;
 end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
@@ -162,33 +195,82 @@ procedure TMainForm.httpServCommandGet(AContext: TIdContext;
   ARequestInfo: TIdHTTPRequestInfo; AResponseInfo: TIdHTTPResponseInfo);
 var
   msg:string;
+  tempname: string;
+  fs: TFileStream;
 begin
   Log('['+AContext.Binding.PeerIP+'] '+ARequestInfo.RawHTTPCommand);
-  if (ARequestInfo.Command='GET') and (Pos('/sign', LowerCase(ARequestInfo.Document)) = 1) then
-  begin
-    if ARequestInfo.Params.Values['file'] <> '' then
+  try
+    if (ARequestInfo.Command='GET') and (Pos('/sign', LowerCase(ARequestInfo.Document)) = 1) then
     begin
-      if FileExists(ARequestInfo.Params.Values['file']) then
+      if ARequestInfo.Params.Values['file'] <> '' then
       begin
-        if SignFile('"'+edSigntoolPath.Text+'" ' + edSigntoolCmdLine.Text, ARequestInfo.Params.Values['file'], msg) then
+        if FileExists(ARequestInfo.Params.Values['file']) then
         begin
-          Log('File "'+ARequestInfo.Params.Values['file']+'" signed');
-          AResponseInfo.ResponseNo := 200; // OK
-          AResponseInfo.ContentText := '<html><head><title>Sign file</title></head><body><h1>File succesfully signed</h1></body></html>';
-          exit;
-        end;
-      end else
-        msg := 'File "'+ARequestInfo.Params.Values['file']+'" not found';
+          if SignFile('"'+edSigntoolPath.Text+'" ' +
+                      ifthen(ARequestInfo.Params.Values['additional'] <>'', ARequestInfo.Params.Values['additional'], edSigntoolCmdLine.Text),
+                      ARequestInfo.Params.Values['file'],
+                      msg) then
+          begin
+            Log('File "'+ARequestInfo.Params.Values['file']+'" signed');
+            AResponseInfo.ResponseNo := 200; // OK
+            AResponseInfo.ContentText := '';
+            exit;
+          end;
+        end else
+          msg := 'File "'+ARequestInfo.Params.Values['file']+'" not found';
 
-      Log('FAIL TO SIGN: "'+ARequestInfo.Params.Values['file']+'"');
-      AResponseInfo.ResponseNo := 500; // OK
-      AResponseInfo.ContentText := '<html><head><title>File not found</title></head><body>'+msg+'</body></html>';
+        Log('FAIL TO SIGN: '+msg);
+        AResponseInfo.ResponseNo := 200;
+        AResponseInfo.CustomHeaders.Values['SignToolErrorCode'] := '1';
+        AResponseInfo.ContentText := msg;
+        exit;
+      end;
+    end else if (ARequestInfo.Command='POST') and (Pos('/sign', LowerCase(ARequestInfo.Document)) = 1) then
+    begin
+      if ARequestInfo.PostStream <> nil then
+      begin
+        setlength(tempname, MAX_PATH);
+        GetTempFileName('.','post', 0, @tempname[1]);
+        setlength(tempname, strlen(PWideChar(tempname)));
+        fs := TFileStream.Create(tempname, fmCreate);
+        ARequestInfo.PostStream.Position := 0;
+        fs.CopyFrom(ARequestInfo.PostStream, ARequestInfo.PostStream.Size);
+        fs.Free;
+
+        try
+          if SignFile('"'+edSigntoolPath.Text+'" ' +
+                      ifthen(ARequestInfo.Params.Values['additional'] <>'', ARequestInfo.Params.Values['additional'], edSigntoolCmdLine.Text),
+                      tempname,
+                      msg) then
+          begin
+            Log('File "'+tempname+'" signed');
+            AResponseInfo.ResponseNo := 200; // OK
+            AResponseInfo.ServeFile(AContext, tempname);
+            exit;
+          end;
+        finally
+          TFile.Delete(tempname);
+        end;
+
+        Log('FAIL TO SIGN: '+msg);
+        AResponseInfo.ResponseNo := 200;
+        AResponseInfo.CustomHeaders.Values['SignToolErrorCode'] := '1';
+        AResponseInfo.ContentText := msg;
+        exit;
+      end;
+    end;
+  except
+    on E: Exception do
+    begin
+      Log('Exception: '+E.Message);
+      AResponseInfo.ResponseNo := 500;
       exit;
     end;
   end;
+
   Log('BAD REQUEST');
   AResponseInfo.ResponseNo := 400; // Bad req
-  AResponseInfo.ContentText := '<html><head><title>Bad request</title></head><body><h1>Unknown command</h1></body></html>';
+  AResponseInfo.ContentText := 'Unknown command';
 end;
 
 procedure TMainForm.LoadSettings;
@@ -209,9 +291,17 @@ procedure TMainForm.Log(const AMessage: string);
 var
   msg: string;
 begin
-  msg := '['+TThread.CurrentThread.ThreadID.ToString+'] '+ AMessage;
+  msg := DateTimeTostr(now)+' ['+TThread.CurrentThread.ThreadID.ToString+'] '+ AMessage;
   TThread.Queue(nil, procedure
   begin
+    if MainForm.memLog.Lines.Count > 20 then
+    begin
+      try
+        FlushLog;
+      except
+      end;
+      MainForm.memLog.Lines.Clear;
+    end;
     MainForm.memLog.Lines.Insert(0, msg);
   end);
 end;
