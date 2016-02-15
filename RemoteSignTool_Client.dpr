@@ -34,10 +34,11 @@ begin
       filetosign := '';
       for I := ParamCount downto 1 do
       begin
-        if (length(ParamStr(I)) > 0) and (ParamStr(I)[1] <> '/') and FileExists(ParamStr(I)) then
+        if (filetosign = '') and (length(ParamStr(I)) > 0) and (ParamStr(I)[1] <> '/') and FileExists(ParamStr(I)) then
           filetosign := ParamStr(I)
         else
-          additional := ParamStr(I)+' '+additional;
+          if not((I > 2) and (ParamStr(I-1).ToLower = '/ac')) then
+            additional := ParamStr(I)+' '+additional;
       end;
 
       if filetosign = '' then

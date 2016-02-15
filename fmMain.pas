@@ -17,6 +17,7 @@ type
     httpServ: TIdHTTPServer;
     btStart: TButton;
     edSigntoolCmdLine: TLabeledEdit;
+    edCross: TLabeledEdit;
     procedure httpServAfterBind(Sender: TObject);
     procedure httpServCommandGet(AContext: TIdContext;
       ARequestInfo: TIdHTTPRequestInfo; AResponseInfo: TIdHTTPResponseInfo);
@@ -49,6 +50,14 @@ uses  IOUtils,
 
 {$R *.dfm}
 
+function GetTempFilename(const APrefix:string=''; const AExt:string=''):string;
+var
+  guid: string;
+begin
+  guid := TGUID.NewGuid.ToString;
+  result := APrefix + guid + ifthen(AExt='','.tmp',AExt);
+end;
+
 function CreateInheritable(out Sa: TSecurityAttributes): PSecurityAttributes;
 begin
   Sa.nLength := SizeOf(Sa);
@@ -66,10 +75,12 @@ var
   rz: boolean;
   tempname: string;
 begin
+  MainForm.Log('Exec: '+CommandLine);
   Result := 255;
-  setlength(tempname, MAX_PATH);
-  GetTempFileName('.','signtool', 0, @tempname[1]);
-  setlength(tempname, strlen(PWideChar(tempname)));
+  tempname := GetTempFileName('sign','.txt');
+//  setlength(tempname, MAX_PATH);
+//  GetTempFileName('.','signtool', 0, @tempname[1]);
+//  setlength(tempname, strlen(PWideChar(tempname)));
   try
     hOutputFile := CreateFile(PChar(tempname), GENERIC_READ or GENERIC_WRITE,
       FILE_SHARE_READ, CreateInheritable(SecAtrrs), CREATE_ALWAYS,
@@ -110,12 +121,15 @@ begin
 end;
 
 
-function SignFile(const SignCmdLine:string; const FileName:string; var ResultMessage:string; hidden:boolean=true):boolean;
+function SignFile(const SignCmdLine:string; const FileName, CrossCert:string; var ResultMessage:string; hidden:boolean=true):boolean;
 var
   rz: Cardinal;
   msg: string;
 begin
-  rz := CreateDOSProcessRedirected(SignCmdLine + ' "'+FileName+'"', msg, hidden);
+  if pos('/ac',SignCmdLine.ToLower) > 0  then
+    rz := CreateDOSProcessRedirected(stringReplace(SignCmdLine, '/ac','/ac "'+CrossCert+'"', [rfIgnoreCase]) + ' "'+FileName+'"', msg, hidden)
+  else
+    rz := CreateDOSProcessRedirected(SignCmdLine + ' "'+FileName+'"', msg, hidden);
   if rz = 0 then
   begin
     result := true;
@@ -209,6 +223,7 @@ begin
           if SignFile('"'+edSigntoolPath.Text+'" ' +
                       ifthen(ARequestInfo.Params.Values['additional'] <>'', ARequestInfo.Params.Values['additional'], edSigntoolCmdLine.Text),
                       ARequestInfo.Params.Values['file'],
+                      edCross.Text,
                       msg) then
           begin
             Log('File "'+ARequestInfo.Params.Values['file']+'" signed');
@@ -229,9 +244,11 @@ begin
     begin
       if ARequestInfo.PostStream <> nil then
       begin
-        setlength(tempname, MAX_PATH);
-        GetTempFileName('.','post', 0, @tempname[1]);
-        setlength(tempname, strlen(PWideChar(tempname)));
+        tempname := GetTempFileName('post',ExtractFileExt(ARequestInfo.Params.Values['file']));
+//        setlength(tempname, MAX_PATH);
+//        GetTempFileName('.','post', 0, @tempname[1]);
+//        setlength(tempname, strlen(PWideChar(tempname)));
+//        tempname := ChangeFileExt(tempname,ExtractFileExt(ARequestInfo.Params.Values['file']));
         fs := TFileStream.Create(tempname, fmCreate);
         ARequestInfo.PostStream.Position := 0;
         fs.CopyFrom(ARequestInfo.PostStream, ARequestInfo.PostStream.Size);
@@ -241,6 +258,7 @@ begin
           if SignFile('"'+edSigntoolPath.Text+'" ' +
                       ifthen(ARequestInfo.Params.Values['additional'] <>'', ARequestInfo.Params.Values['additional'], edSigntoolCmdLine.Text),
                       tempname,
+                      edCross.Text,
                       msg) then
           begin
             Log('File "'+tempname+'" signed');
@@ -282,6 +300,7 @@ begin
     edSigntoolPath.Text := ini.ReadString('server', 'signtool_path','signtool.exe');
     edSigntoolCmdLine.Text := ini.ReadString('server', 'signtool_commandline','sign /a "%s"');
     edHttpPort.Text := ini.ReadInteger('server', 'http_port',8090).ToString;
+    edCross.Text := ini.ReadString('server','cross_cert','GlobalSign Root CA.crt');
   finally
     ini.Free;
   end;
@@ -315,6 +334,7 @@ begin
     ini.WriteString('server','signtool_path',edSigntoolPath.Text);
     ini.WriteString('server','signtool_commandline',edSigntoolCmdLine.Text);
     ini.WriteInteger('server','http_port',string(edHttpPort.Text).ToInteger);
+    ini.WriteString('server','cross_cert',edCross.Text);
   finally
     ini.Free;
   end;
@@ -342,7 +362,7 @@ begin
   tryfile := ChangeFileExt(ParamStr(0),'_try.exe');
   TFile.Copy(ParamStr(0), tryfile, true);
 
-  if not SignFile('"'+edSigntoolPath.Text+'" ' + edSigntoolCmdLine.Text, tryfile, msg, false) then
+  if not SignFile('"'+edSigntoolPath.Text+'" ' + edSigntoolCmdLine.Text, tryfile, '', msg, false) then
     Log('Error: '+msg)
   else begin
     result := true;
