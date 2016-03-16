@@ -38,7 +38,10 @@ begin
           filetosign := ParamStr(I)
         else
           if not((I > 2) and (ParamStr(I-1).ToLower = '/ac')) then
-            additional := ParamStr(I)+' '+additional;
+            if ParamStr(I).IndexOf(' ') > 0 then
+              additional := '"'+ParamStr(I)+'" '+additional
+            else
+              additional := ParamStr(I)+' '+additional;
       end;
 
       if filetosign = '' then

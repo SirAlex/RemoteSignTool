@@ -93,8 +93,8 @@ begin
       try
         // Get query used for signing locally, when server side on same computer
         http.Get('http://'+_Host+':'+inttostr(_Port)+
-                 '/sign?file='+TNetEncoding.HTML.Encode(FileName)+
-                 ifthen(Additional<>'','&additional='+TNetEncoding.HTML.Encode(Additional),''),
+                 '/sign?file='+TNetEncoding.URL.Encode(FileName)+
+                 ifthen(Additional<>'','&additional='+TNetEncoding.URL.Encode(Additional),''),
                  resultStream);
         if http.Response.RawHeaders.Values['SignToolErrorCode'] <> '' then
         begin
@@ -116,8 +116,8 @@ begin
       try
         // Send file via POST query, result must be signed file
         http.Post('http://'+_Host+':'+inttostr(_Port)+
-                 '/sign?file='+TNetEncoding.HTML.Encode(FileName)+
-                 ifthen(Additional<>'','&additional='+TNetEncoding.HTML.Encode(Additional),''),
+                 '/sign?file='+TNetEncoding.URL.Encode(FileName)+
+                 ifthen(Additional<>'','&additional='+TNetEncoding.URL.Encode(Additional),''),
                  FileName, resultStream);
         if http.Response.RawHeaders.Values['SignToolErrorCode'] <> '' then
         begin
