@@ -94,8 +94,6 @@ object MainForm: TMainForm
     Height = 267
     Align = alClient
     TabOrder = 1
-    ExplicitTop = 160
-    ExplicitHeight = 284
   end
   object httpServ: TIdHTTPServer
     Bindings = <>

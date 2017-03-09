@@ -121,7 +121,7 @@ begin
 end;
 
 
-function SignFile(const SignCmdLine:string; const FileName, CrossCert:string; var ResultMessage:string; hidden:boolean=true):boolean;
+function SignFile(const SignCmdLine:string; const FileName, CrossCert:string; var ResultMessage:string; hidden:boolean=false):boolean;
 var
   rz: Cardinal;
   msg: string;
