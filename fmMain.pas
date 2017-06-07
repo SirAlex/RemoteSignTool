@@ -68,34 +68,43 @@ end;
 
 function CreateDOSProcessRedirected(CommandLine: string; var StdErr: string; Hidden:boolean=true): Cardinal;
 var
+  Security: TSecurityAttributes;
+  hReadPipe, hWritePipe : THandle;
   StartupInfo: TStartupInfo;
   ProcessInfo: TProcessInformation;
-  SecAtrrs: TSecurityAttributes;
-  hOutputFile: THandle;
   rz: boolean;
-  tempname: string;
+  BytesInPipe: DWORD;
+  BytesReadFromPIPE: Cardinal;
+  StdErrBuffer: AnsiString;
 begin
-  MainForm.Log('Exec: '+CommandLine);
+  MainForm.Log('[SIGN] Exec signtool: '+CommandLine);
   Result := 255;
-  tempname := GetTempFileName('sign','.txt');
-//  setlength(tempname, MAX_PATH);
-//  GetTempFileName('.','signtool', 0, @tempname[1]);
-//  setlength(tempname, strlen(PWideChar(tempname)));
+  StdErr := '';
+
+  // Create pipes to read StdErr pipe from signtool.exe (to show error message to calling process(client))
+  With Security do begin
+    nlength := SizeOf(TSecurityAttributes) ;
+    binherithandle := true;
+    lpsecuritydescriptor := nil;
+  end;
+  if not Createpipe(hReadPipe, hWritePipe, @Security, 0) then
+    raise Exception.Create('[SIGN] Cannot create pipes, sys error:'+SysErrorMessage(getLastError));
+
   try
-    hOutputFile := CreateFile(PChar(tempname), GENERIC_READ or GENERIC_WRITE,
-      FILE_SHARE_READ, CreateInheritable(SecAtrrs), CREATE_ALWAYS,
-      FILE_ATTRIBUTE_TEMPORARY, 0);
-    if hOutputFile <> INVALID_HANDLE_VALUE then
-    begin
+    try
+      // Prepare startup parameters
       FillChar(StartupInfo, SizeOf(StartupInfo), 0);
       FillChar(ProcessInfo, SizeOf(ProcessInfo), 0);
       StartupInfo.cb := SizeOf(StartupInfo);
       StartupInfo.dwFlags := STARTF_USESHOWWINDOW or STARTF_USESTDHANDLES;
+      StartupInfo.hStdInput := hReadPipe;
+      StartupInfo.hStdOutput := hWritePipe;
+      StartupInfo.hStdError := hWritePipe;
       if Hidden then
         StartupInfo.wShowWindow := SW_HIDE
       else
         StartupInfo.wShowWindow := SW_SHOWNORMAL;
-      StartupInfo.hStdError := hOutputFile;
+
       UniqueString(CommandLine);//in the Unicode version the parameter lpCommandLine needs to be writable
       rz := CreateProcess(nil, PChar(CommandLine), nil, nil, True,
         CREATE_NEW_CONSOLE or NORMAL_PRIORITY_CLASS, nil, nil, StartupInfo,
@@ -104,19 +113,35 @@ begin
       begin
         WaitForSingleObject(ProcessInfo.hProcess, INFINITE);
         GetExitCodeProcess(ProcessInfo.hProcess, result);
-        CloseHandle(hOutputFile);
-        if result <> 0 then
-          StdErr := TFile.ReadAllText(tempname, TEncoding.ASCII);
         CloseHandle(ProcessInfo.hProcess);
         CloseHandle(ProcessInfo.hThread);
+        if result <> 0 then
+        begin
+          MainForm.Log('[SIGN] FAIL: signtool exit code is: '+inttostr(result));
+          BytesInPipe := 0;
+          if not PeekNamedPipe(hReadPipe, nil, 0, nil, @BytesInPipe, nil) then
+            raise Exception.Create('[SIGN] Unable to check pipe length, OS Error:'+SysErrorMessage(getLastError));
+          setLength(StdErrBuffer, BytesInPipe);
+          if not ReadFile(hReadPipe,StdErrBuffer[1], BytesInPipe, BytesReadFromPIPE, nil) then
+            raise Exception.Create('[SIGN] Unable to read from StdErr, OS Error:'+SysErrorMessage(getLastError));
+          StdErr := string(StdErrBuffer);
+        end else
+          MainForm.Log('[SIGN] SUCCESS: signtool exit code is: '+inttostr(result));
       end else
       begin
-        CloseHandle(hOutputFile);
+        MainForm.Log('[SIGN] FAIL: Cannot start signtool.exe, error code:'+inttostr(GetLastError));
         result := 254;
       end;
+    finally
+      CloseHandle(hReadPipe);
+      CloseHandle(hWritePipe);
     end;
-  finally
-    TFile.Delete(tempname);
+  except
+    on E: Exception do
+    begin
+      MainForm.Log('[SIGN] FAIL: '+E.Message);
+      raise;
+    end;
   end;
 end;
 
@@ -137,7 +162,7 @@ begin
   end else
   begin
     result := false;
-    ResultMessage := 'Signtool rror code: '+inttostr(rz)+#13#10+msg;
+    ResultMessage := 'Signtool error: '+inttostr(rz)+#13#10+msg;
   end;
 end;
 
@@ -147,7 +172,7 @@ procedure TMainForm.btStartClick(Sender: TObject);
 begin
   if httpServ.Active then
   begin
-    Log('Stopping HTTP server');
+    Log('[HTTP] Stopping server');
     httpServ.Active := false;
   end;
 
@@ -202,7 +227,7 @@ end;
 procedure TMainForm.httpServAfterBind(Sender: TObject);
 begin
   pnTop.Color := $dbffce;
-  Log('HTTP Server started on port:'+httpServ.DefaultPort.ToString);
+  Log('[HTTP] Server started on port:'+httpServ.DefaultPort.ToString);
 end;
 
 procedure TMainForm.httpServCommandGet(AContext: TIdContext;
@@ -212,7 +237,7 @@ var
   tempname: string;
   fs: TFileStream;
 begin
-  Log('['+AContext.Binding.PeerIP+'] '+ARequestInfo.RawHTTPCommand);
+  Log('[HTTP] '+ARequestInfo.Command+' [IP:'+AContext.Binding.PeerIP+'] [Command: '+ARequestInfo.RawHTTPCommand+']');
   try
     if (ARequestInfo.Command='GET') and (Pos('/sign', LowerCase(ARequestInfo.Document)) = 1) then
     begin
@@ -245,10 +270,6 @@ begin
       if ARequestInfo.PostStream <> nil then
       begin
         tempname := GetTempFileName('post',ExtractFileExt(ARequestInfo.Params.Values['file']));
-//        setlength(tempname, MAX_PATH);
-//        GetTempFileName('.','post', 0, @tempname[1]);
-//        setlength(tempname, strlen(PWideChar(tempname)));
-//        tempname := ChangeFileExt(tempname,ExtractFileExt(ARequestInfo.Params.Values['file']));
         fs := TFileStream.Create(tempname, fmCreate);
         ARequestInfo.PostStream.Position := 0;
         fs.CopyFrom(ARequestInfo.PostStream, ARequestInfo.PostStream.Size);
@@ -280,13 +301,13 @@ begin
   except
     on E: Exception do
     begin
-      Log('Exception: '+E.Message);
+      Log('[HTTP] Exception: '+E.Message);
       AResponseInfo.ResponseNo := 500;
       exit;
     end;
   end;
 
-  Log('BAD REQUEST');
+  Log('[HTTP] BAD REQUEST');
   AResponseInfo.ResponseNo := 400; // Bad req
   AResponseInfo.ContentText := 'Unknown command';
 end;
