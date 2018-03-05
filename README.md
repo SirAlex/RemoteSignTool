@@ -20,11 +20,12 @@ You must login locally (you cannot use RDP) to machine with EV token attached an
   a) If you will use TeamViewer, you **must set on TV's client side "Never" for "Lock remote computer" option**,(Go to Advanced settings ->  "Advanced settings for connections to remote computers).
   b) **Do not logout from session after launching RemoteSignTool server!**
 2. You must set "Enable single logon" in the SafeNet Auth client Tools (Advanced View -> Client Settings -> Advanced)
-3. Please, use **Delphi XE8 Upd1** to compile project OR you can use prebuit binaries from [Releases page](https://github.com/SirAlex/RemoteSignTool/releases)
+3. Please, use **Delphi XE8 Upd1** to compile project OR you can use prebuilt binaries from [Releases page](https://github.com/SirAlex/RemoteSignTool/releases)
+4. Use AutoIt to build AutoPin.au3 script.
 
 ### Usage:
 1. Login to computer where you placed this tool (server side). This can be build server itself. If you have access to admin console (locally or via TeamViewer).
-2. Sart AutoPin.exe with EV token passowrd as first argument:
+2. Start AutoPin.exe with EV token passowrd as first argument:
 ``` 
 AutoPin.exe YourPassHere
 ```
