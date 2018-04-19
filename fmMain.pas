@@ -26,6 +26,7 @@ type
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
   private
     { Private declarations }
+    procedure TestAndStartHTTPServer;
     procedure StartHTTPServer;
     function TrySignFile:boolean;
 
@@ -176,14 +177,7 @@ begin
     httpServ.Active := false;
   end;
 
-  Log('Trying to sign test file, you MUST enter password for token!');
-  if not TrySignFile then
-  begin
-    pnTop.Color := $8080ff;
-    Log('TEST FAILED!!!')
-  end
-  else
-    StartHTTPServer;
+  TestAndStartHTTPServer;
 end;
 
 procedure TMainForm.FlushLog;
@@ -222,6 +216,8 @@ end;
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
   LoadSettings;
+  if FindCmdLineSwitch('autostart', True) then
+    TestAndStartHTTPServer;
 end;
 
 procedure TMainForm.httpServAfterBind(Sender: TObject);
@@ -365,6 +361,18 @@ procedure TMainForm.StartHTTPServer;
 begin
   httpServ.DefaultPort := string(edHttpPort.Text).ToInteger;
   httpServ.Active := true;
+end;
+
+procedure TMainForm.TestAndStartHTTPServer;
+begin
+  Log('Trying to sign test file, you MUST enter password for token!');
+  if not TrySignFile then
+  begin
+    pnTop.Color := $8080ff;
+    Log('TEST FAILED!!!')
+  end
+  else
+    StartHTTPServer;
 end;
 
 function TMainForm.TrySignFile: boolean;

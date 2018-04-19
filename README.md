@@ -29,6 +29,6 @@ You must login locally (you cannot use RDP) to machine with EV token attached an
 ``` 
 AutoPin.exe YourPassHere
 ```
-3. Start RemoteSignTool_Server.exe. Press "Test and start" button. This will launch signtool on test file, if file successfully signed, HTTP server start and will ready to accept remote connections.
+3. Start RemoteSignTool_Server.exe. Press "Test and start" button (OR specify **-autostart** cmd line switch to automatically test and start HTTP server). This will launch signtool on test file, if file successfully signed, HTTP server start and will ready to accept remote connections.
 4. Do not lock console. Close TeamViewer or leave console as-is.
 5. Now you can use RemoteSignTool_Client.exe to sign files remotely (or locally if you are instelled all parts on single machine - preferred)
