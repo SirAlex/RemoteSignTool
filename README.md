@@ -31,4 +31,5 @@ AutoPin.exe YourPassHere
 ```
 3. Start RemoteSignTool_Server.exe. Press "Test and start" button (OR specify **-autostart** cmd line switch to automatically test and start HTTP server). This will launch signtool on test file, if file successfully signed, HTTP server start and will ready to accept remote connections.
 4. Do not lock console. Close TeamViewer or leave console as-is.
-5. Now you can use RemoteSignTool_Client.exe to sign files remotely (or locally if you are instelled all parts on single machine - preferred)
+5. Edit ```Client/RemoteSignTool_Client.ini``` and set the host property to point to the server.
+6. Now you can use RemoteSignTool_Client.exe to sign files remotely (or locally if you are instelled all parts on single machine - preferred)
